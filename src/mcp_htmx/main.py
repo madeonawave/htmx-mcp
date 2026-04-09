@@ -158,6 +158,32 @@ def eval_js(t, expr: str):
     return result
 
 
+def js_escape(s: str) -> str:
+    """Escape a string for safe insertion into JavaScript.
+
+    This prevents XSS via parameter injection.
+    """
+    # Escape backslashes first, then quotes, then newlines/tabs
+    return (
+        s.replace("\\", "\\\\")
+        .replace("'", "\\'")
+        .replace('"', '\\"')
+        .replace("\n", "\\n")
+        .replace("\r", "\\r")
+        .replace("\t", "\\t")
+        .replace("<", "\\x3c")
+        .replace(">", "\\x3e")
+        .replace("&", "\\x26")
+    )
+
+
+def js_selector(selector: str) -> str:
+    """Escape a CSS selector for safe use in document.querySelector."""
+    # For selectors, we need to be more careful - single quotes are common in CSS
+    # Use JSON.stringify which properly escapes for JS strings
+    return f"JSON.stringify(['{js_escape(selector)}'])"
+
+
 @mcp.tool()
 def htmx_check() -> dict:
     """Check if htmx is loaded on page and get version."""
@@ -277,14 +303,33 @@ def htmx_trigger(selector: str, event: str = "click") -> dict:
 
     global tab
     tab = t
+
+    # Validate inputs - reject suspicious patterns
+    if not selector or len(selector) > 500:
+        return {"error": "Invalid selector"}
+    if not event or len(event) > 100:
+        return {"error": "Invalid event name"}
+
     try:
+        # Use double braces {{ }} for literal braces in f-string
+        escaped_selector = js_escape(selector)
+        escaped_event = js_escape(event)
         result = eval_js(
             t,
             f"""(function() {{
-            const el = document.querySelector('{selector}');
-            if (!el) return {{ error: 'Element not found: {selector}' }};
-            htmx.trigger(el, '{event}');
-            return {{ success: true, event: '{event}', selector: '{selector}' }};
+            var selector = '{escaped_selector}';
+            var eventName = '{escaped_event}';
+            // Use unescape to get original values for display
+            var displaySelector = selector;
+            var displayEvent = eventName;
+            try {{
+                var el = document.querySelector(selector);
+                if (!el) return {{ error: 'Element not found: ' + selector }};
+                htmx.trigger(el, eventName);
+                return {{ success: true, event: displayEvent, selector: displaySelector }};
+            }} catch(e) {{
+                return {{ error: e.message }};
+            }}
         }})()""",
         )
         return result or {"error": "No result"}
@@ -315,112 +360,31 @@ def htmx_ajax(
 
     global tab
     tab = t
+
+    if not url:
+        return {"error": "url is required"}
+
+    escaped_method = js_escape(method.upper())
+    escaped_url = js_escape(url)
+    escaped_source = js_escape(source)
+    escaped_target = js_escape(target)
+    escaped_swap = js_escape(swap)
+
     try:
-        # Build the htmx.ajax config object
-        config = f"""{{
-            source: document.querySelector('{source}') || undefined,
-            target: document.querySelector('{target}') || undefined,
-            swap: '{swap}'
-        }}"""
-
-        if not url:
-            # Use htmx.trigger with the params
-            return {"error": "url is required"}
-
         result = eval_js(
             t,
             f"""(function() {{
-            const detail = {config};
-            detail.url = '{url}';
-            detail.path = '{url}';
-            detail.verb = '{method}';
+            const detail = {{
+                source: document.querySelector('{escaped_source}') || undefined,
+                target: document.querySelector('{escaped_target}') || undefined,
+                swap: '{escaped_swap}'
+            }};
             
-            // Find a trigger element if not specified
-            const triggerEl = detail.source || document.activeElement;
-            
-            htmx.ajax('{method}', '{url}', detail);
-            return {{ success: true, method: '{method}', url: '{url}', swap: '{swap}' }};
+            htmx.ajax('{escaped_method}', '{escaped_url}', detail);
+            return {{ success: true, method: '{escaped_method}', url: '{escaped_url}', swap: '{escaped_swap}' }};
         }})()""",
         )
         return result or {"error": "No result"}
-    except Exception as e:
-        return {"error": str(e)}
-
-
-@mcp.tool()
-async def htmx_events(limit: int = 20, filter: str = "") -> list:
-    """Get captured htmx events (beforeRequest, afterSwap, etc.)."""
-    p = await get_page()
-    if p is None:
-        return [{"error": "Cannot connect to Chrome"}]
-
-    try:
-        if filter:
-            expr = f"""() => window._htmxTool.events().filter(e=>e.name.includes('{filter}')).slice(-{limit})"""
-        else:
-            expr = f"""() => window._htmxTool.events().slice(-{limit})"""
-
-        result = await p.evaluate(f"({expr})()")
-        return result
-    except Exception as e:
-        return [{"error": str(e)}]
-
-
-@mcp.tool()
-async def htmx_elements() -> list:
-    """Find all htmx-enabled elements on page."""
-    p = await get_page()
-    if p is None:
-        return [{"error": "Cannot connect to Chrome"}]
-
-    try:
-        result = await p.evaluate("() => window._htmxTool.elements()")
-        return result
-    except Exception as e:
-        return [{"error": str(e)}]
-
-
-@mcp.tool()
-async def htmx_errors() -> list:
-    """Get captured htmx errors."""
-    p = await get_page()
-    if p is None:
-        return [{"error": "Cannot connect to Chrome"}]
-
-    try:
-        result = await p.evaluate("() => window._htmxTool.errors()")
-        return result
-    except Exception as e:
-        return [{"error": str(e)}]
-
-
-@mcp.tool()
-async def htmx_state() -> dict:
-    """Get htmx internal state."""
-    p = await get_page()
-    if p is None:
-        return {"error": "Cannot connect to Chrome"}
-
-    try:
-        result = await p.evaluate("() => window._htmxTool.state()")
-        return result
-    except Exception as e:
-        return {"error": str(e)}
-
-
-@mcp.tool()
-async def htmx_navigate(url: str = "about:blank") -> dict:
-    """Navigate to a URL and inject htmx interceptor."""
-    global page
-
-    p = await get_page()
-    if p is None:
-        return {"error": "Cannot connect to Chrome"}
-
-    try:
-        await p.goto(url)
-        await p.evaluateOnDocument(HTMX_INTERCEPTOR)
-        return {"success": True, "url": url}
     except Exception as e:
         return {"error": str(e)}
 
