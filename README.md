@@ -4,28 +4,22 @@ Chrome DevTools MCP server for debugging htmx applications.
 
 ## Features
 
-- Check if htmx is loaded on any page
 - Find all htmx-enabled elements
 - Capture and inspect htmx events (beforeRequest, afterSwap, etc.)
-- View htmx errors
 - Navigate pages with automatic interceptor injection
+- Check if htmx is loaded on any page
+- View htmx errors
 
 ## Installation
 
 ### Via uv (recommended)
 ```bash
-uv tool install /projects/cheatsheet/mcp-htmx-python
+uv tool install mcp-htmx
 ```
 
 ### Via pip
 ```bash
 pip install mcp-htmx
-```
-
-### Development
-```bash
-cd mcp-htmx-python
-uv sync
 ```
 
 ## Usage
