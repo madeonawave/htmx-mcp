@@ -1,4 +1,4 @@
-# mcp-htmx
+# htmx-mcp
 
 Chrome DevTools MCP server for debugging htmx applications.
 
