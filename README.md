@@ -12,7 +12,14 @@ Chrome DevTools MCP server for debugging htmx applications.
 
 ## Installation
 
-### Via uv (recommended)
+## Source
+`git clone` this project
+```bash
+cd htmx-mcp
+uv tool install -e .
+```
+
+### Via uv 
 ```bash
 uv tool install mcp-htmx
 ```
