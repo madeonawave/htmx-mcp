@@ -12,22 +12,29 @@ Chrome DevTools MCP server for debugging htmx applications.
 
 ## Installation
 
-## Source
+### from  Source
 `git clone` this project
 ```bash
 cd src/htmx-mcp
 uv tool install -e .
 ```
 
-### Via uv 
-```bash
-uv tool install mcp-htmx
-```
+[//]: # (### Via uv )
 
-### Via pip
-```bash
-pip install mcp-htmx
-```
+[//]: # (```bash)
+
+[//]: # (uv tool install mcp-htmx)
+
+[//]: # (```)
+
+[//]: # ()
+[//]: # (### Via pip)
+
+[//]: # (```bash)
+
+[//]: # (pip install mcp-htmx)
+
+[//]: # (```)
 
 ## Warning
 Since the Agent can decide to use this tool to execute some local javascript code, 
