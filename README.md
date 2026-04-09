@@ -2,48 +2,71 @@
 
 Chrome DevTools MCP server for debugging htmx applications.
 
-## Features
+This MCP connects to a Chrome browser (via CDP) and lets you inspect and debug any htmx-powered web page. 
+It captures htmx events and exposes an API to query the page.
 
-- Find all htmx-enabled elements
-- Capture and inspect htmx events (beforeRequest, afterSwap, etc.)
-- Navigate pages with automatic interceptor injection
-- Check if htmx is loaded on any page
-- View htmx errors
+It can: 
+- Discover all elements with htmx attributes on a page:
+  - `hx-get`, `hx-post`, `hx-put`, `hx-patch`, `hx-delete`
+  - `hx-trigger`, `hx-target`, `hx-swap`, etc.
+
+- Monitor the htmx event lifecycle:
+  - `htmx:beforeRequest` - before any request
+  - `htmx:configRequest` - request configuration
+  - `htmx:afterRequest` - after response received
+  - `htmx:afterSwap` - after DOM swap
+  - `htmx:settle` - after settle phase
+  - Error events: `htmx:responseError`, `htmx:sendError`, `htmx:swapError`
+
+- Debug Issues
+  - View all captured errors
+  - Check if htmx is loaded
+  - Get htmx version
+  - Inspect internal state
+
+- Interact Programmatically
+  - Trigger events on elements
+  - Make htmx-style ajax requests
+  - Navigate pages (auto-injects interceptor)
+
+### What It Cannot Do
+- Cannot change how htmx processes requests or responses.
+- Only captures event metadata, not the actual request/response content.
+- It won't click buttons or fill forms automatically.
+- It can not share Chrome with other tools. Each MCP gets its own tab.
+
 
 ## Installation
 
-### from  Source
-`git clone` this project
+### From Source
 ```bash
-cd src/htmx-mcp
+git clone https://github.com/madeonawave/htmx-mcp.git
+cd htmx-mcp
 uv tool install -e .
 ```
 
-[//]: # (### Via uv )
+### Via uv (once published)
+```bash
+uv tool install mcp-htmx
+```
 
-[//]: # (```bash)
-
-[//]: # (uv tool install mcp-htmx)
-
-[//]: # (```)
-
-[//]: # ()
-[//]: # (### Via pip)
-
-[//]: # (```bash)
-
-[//]: # (pip install mcp-htmx)
-
-[//]: # (```)
-
-## Warning
-Since the Agent can decide to use this tool to execute some local javascript code, 
-you should use a separate browser that is not used for anything else, so it does not have access to the password-manager or sessions.  
+### Via pip (once published)
+```bash
+pip install mcp-htmx
+```
 
 ## Usage
 
-### As MCP server with OpenCode
-Configure in opencode.json:
+### 1. Start Chrome with Remote Debugging
+
+```bash
+google-chrome --remote-debugging-port=9222 --headless-new --no-sandbox
+```
+
+Or use the MCP's auto-spawn feature (it will try to find Chrome in your PATH).
+
+### 2. Configure in OpenCode
+
 ```json
 {
   "mcp": {
@@ -56,32 +79,48 @@ Configure in opencode.json:
 }
 ```
 
-### Command line
-```bash
-mcp-htmx
-```
+### 3. Use the Tools
 
-## Tools
+In OpenCode, ask:
 
-| Tool | Description |
-|------|-------------|
-| `htmx_check` | Check if htmx is loaded + version |
-| `htmx_elements` | Find all htmx-enabled elements |
-| `htmx_events` | List captured events |
-| `htmx_errors` | Get errors |
-| `htmx_state` | Get htmx internal state |
-| `htmx_navigate` | Navigate + inject |
+> "Find all htmx elements on the current page"
+> "Show me the htmx events"
+> "Navigate to https://example.com and check if htmx is loaded"
+
+## Tools Reference
+
+| Tool | Description | Example |
+|------|-------------|---------|
+| `htmx_check` | Is htmx loaded? Get version | `{loaded: true, version: "1.9.12"}` |
+| `htmx_elements` | All htmx-enabled elements | `[{"tag":"button","attrs":{"hx-get":"/api"}}]` |
+| `htmx_events` | Captured events (with filter/limit) | `[{name: "htmx:beforeRequest", time: 1234567890}]` |
+| `htmx_errors` | All captured errors | `[{message: "Network error", time: 1234567890}]` |
+| `htmx_state` | Internal htmx state | `{version: "1.9.12"}` |
+| `htmx_navigate` | Navigate URL + inject interceptor | `{success: true, url: "https://..."}` |
+| `htmx_trigger` | Trigger event on element | `{success: true, event: "click"}` |
+| `htmx_ajax` | Make htmx-style request | `{success: true, method: "GET"}` |
 
 ## Requirements
 
-- Chrome with remote debugging on port 9222
 - Python 3.10+
+- Chrome/Chromium with remote debugging enabled
+- Chrome must be accessible on `localhost:9222`
 
-## Chrome Connection
+## Security Warning
 
-Uses pychrome to connect to Chrome on port 9222. Start Chrome with:
+Use a separate Chrome browser / profile. The MCP can execute JavaScript in the browser. Don't use your primary browser session.
+
+## Development
+
 ```bash
-google-chrome --remote-debugging-port=9222 --headless
+# Run tests
+uv run --with pytest pytest tests/test_package.py -v
+
+# Run manually
+uv sync
+mcp-htmx
 ```
 
-Or let mcp-htmx spawn Chrome automatically (if found in PATH).
+## License
+
+MIT
