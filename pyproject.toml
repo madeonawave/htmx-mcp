@@ -1,11 +1,11 @@
 [project]
 name = "mcp-htmx"
 version = "1.0.0"
-description = "DevTools MCP for debugging htmx applications"
+description = "DevTools MCP for debugging HTMX applications"
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [
-    {name = "Alex D", email = "alex@lxer.eu"},
+    {name = "Alex D", email = "htmxlabs@lxer.eu"},
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -28,7 +28,7 @@ dev = [
 ]
 
 [project.scripts]
-mcp-htmx = "mcp_htmx:main"
+mcp-htmx = "mcp_htmx.main:main"
 
 [build-system]
 requires = ["hatchling"]

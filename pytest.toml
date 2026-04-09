@@ -1,0 +1,6 @@
+[tool.pytest.ini_options]
+filterwarnings = [
+    "ignore::pytest.PytestUnhandledThreadExceptionWarning",
+]
+addopts = "-W ignore::pytest.PytestUnhandledThreadExceptionWarning"
+testpaths = ["tests"]
