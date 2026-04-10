@@ -91,14 +91,14 @@ HTMX_INTERCEPTOR = """
     if (window.__htmxErrorLog.length > MAX) window.__htmxErrorLog.shift();
   }
 
-  document.body.addEventListener('htmx:beforeRequest', e => logEvent('htmx:beforeRequest', e));
-  document.body.addEventListener('htmx:afterRequest', e => logEvent('htmx:afterRequest', e));
-  document.body.addEventListener('htmx:afterSwap', e => logEvent('htmx:afterSwap', e));
-  document.body.addEventListener('htmx:beforeSwap', e => logEvent('htmx:beforeSwap', e));
-  document.body.addEventListener('htmx:configRequest', e => logEvent('htmx:configRequest', e));
-  document.body.addEventListener('htmx:responseError', e => { logEvent('htmx:responseError', e); logError(e.detail?.error || 'Response error'); });
-  document.body.addEventListener('htmx:sendError', e => { logEvent('htmx:sendError', e); logError(e.detail?.error || 'Send error'); });
-  document.body.addEventListener('htmx:swapError', e => { logEvent('htmx:swapError', e); logError(e.detail?.error || 'Swap error'); });
+  document.addEventListener('htmx:beforeRequest', e => logEvent('htmx:beforeRequest', e));
+  document.addEventListener('htmx:afterRequest', e => logEvent('htmx:afterRequest', e));
+  document.addEventListener('htmx:afterSwap', e => logEvent('htmx:afterSwap', e));
+  document.addEventListener('htmx:beforeSwap', e => logEvent('htmx:beforeSwap', e));
+  document.addEventListener('htmx:configRequest', e => logEvent('htmx:configRequest', e));
+  document.addEventListener('htmx:responseError', e => { logEvent('htmx:responseError', e); logError(e.detail?.error || 'Response error'); });
+  document.addEventListener('htmx:sendError', e => { logEvent('htmx:sendError', e); logError(e.detail?.error || 'Send error'); });
+  document.addEventListener('htmx:swapError', e => { logEvent('htmx:swapError', e); logError(e.detail?.error || 'Swap error'); });
 
   window._htmxTool = {
     events: () => window.__htmxEventLog,
@@ -134,18 +134,19 @@ def get_tab():
             tab.Runtime.evaluate(expression="1+1")
             return tab
         except:
-            tab = None  # Reset dead tab
+            pass  # Tab dead, will create new one
 
     try:
         browser = pychrome.Browser(url="http://127.0.0.1:9222")
         tab = browser.new_tab()
         tab.start()
-        # Inject the interceptor
         tab.Runtime.evaluate(expression=HTMX_INTERCEPTOR)
         return tab
     except Exception as e:
         print(f"No Chrome, trying to spawn: {e}", file=sys.stderr)
         if spawn_chrome():
+            browser = None
+            tab = None
             return get_tab()  # Retry after spawning
         return None
 
@@ -194,12 +195,17 @@ def htmx_check() -> dict:
         }
 
     try:
-        return eval_js(
+        import json
+
+        result = eval_js(
             t,
-            """window._htmxTool 
-            ? { loaded: true, version: window._htmxTool.state()?.version }
-            : { loaded: false }""",
+            """JSON.stringify(
+            typeof window.htmx !== 'undefined' 
+            ? { loaded: true, version: window.htmx.version }
+            : { loaded: false }
+            )""",
         )
+        return json.loads(result) if result else {"loaded": False}
     except Exception as e:
         return {"error": str(e)}
 
@@ -215,11 +221,14 @@ def htmx_events(limit: int = 20, filter: str = "") -> list:
     tab = t
     try:
         if filter:
-            expr = f"""window._htmxTool.events().filter(e=>e.name.includes('{filter}')).slice(-{limit})"""
+            expr = f"""JSON.stringify(window._htmxTool.events().filter(e=>e.name.includes('{filter}')).slice(-{limit}))"""
         else:
-            expr = f"window._htmxTool.events().slice(-{limit})"
+            expr = f"JSON.stringify(window._htmxTool.events().slice(-{limit}))"
 
-        return eval_js(t, expr) or []
+        result = eval_js(t, expr)
+        import json
+
+        return json.loads(result) if result else []
     except Exception as e:
         return [{"error": str(e)}]
 
@@ -234,7 +243,10 @@ def htmx_elements() -> list:
     global tab
     tab = t
     try:
-        return eval_js(t, "window._htmxTool.elements()") or []
+        result = eval_js(t, "JSON.stringify(window._htmxTool.elements())")
+        import json
+
+        return json.loads(result) if result else []
     except Exception as e:
         return [{"error": str(e)}]
 
@@ -249,7 +261,10 @@ def htmx_errors() -> list:
     global tab
     tab = t
     try:
-        return eval_js(t, "window._htmxTool.errors()") or []
+        result = eval_js(t, "JSON.stringify(window._htmxTool.errors())")
+        import json
+
+        return json.loads(result) if result else []
     except Exception as e:
         return [{"error": str(e)}]
 
@@ -264,7 +279,10 @@ def htmx_state() -> dict:
     global tab
     tab = t
     try:
-        return eval_js(t, "window._htmxTool.state()") or {}
+        result = eval_js(t, "JSON.stringify(window._htmxTool.state())")
+        import json
+
+        return json.loads(result) if result else {}
     except Exception as e:
         return {"error": str(e)}
 
@@ -278,11 +296,9 @@ def htmx_navigate(url: str = "about:blank") -> dict:
 
     try:
         t.Page.navigate(url=url)
-        # Wait for page to load
         import time
 
-        time.sleep(2)
-        # Reinject interceptor
+        time.sleep(4)
         t.Runtime.evaluate(expression=HTMX_INTERCEPTOR)
         return {"success": True, "url": url}
     except Exception as e:
@@ -311,28 +327,24 @@ def htmx_trigger(selector: str, event: str = "click") -> dict:
         return {"error": "Invalid event name"}
 
     try:
-        # Use double braces {{ }} for literal braces in f-string
         escaped_selector = js_escape(selector)
         escaped_event = js_escape(event)
-        result = eval_js(
-            t,
-            f"""(function() {{
+        js_expr = f"""(function() {{
             var selector = '{escaped_selector}';
             var eventName = '{escaped_event}';
-            // Use unescape to get original values for display
-            var displaySelector = selector;
-            var displayEvent = eventName;
             try {{
                 var el = document.querySelector(selector);
-                if (!el) return {{ error: 'Element not found: ' + selector }};
+                if (!el) return JSON.stringify({{ error: 'Element not found: ' + selector }});
                 htmx.trigger(el, eventName);
-                return {{ success: true, event: displayEvent, selector: displaySelector }};
+                return JSON.stringify({{ success: true, event: eventName, selector: selector }});
             }} catch(e) {{
-                return {{ error: e.message }};
+                return JSON.stringify({{ error: e.message }});
             }}
-        }})()""",
-        )
-        return result or {"error": "No result"}
+        }})()"""
+        result = eval_js(t, js_expr)
+        import json
+
+        return json.loads(result) if result else {"error": "No result"}
     except Exception as e:
         return {"error": str(e)}
 
@@ -371,20 +383,21 @@ def htmx_ajax(
     escaped_swap = js_escape(swap)
 
     try:
-        result = eval_js(
-            t,
-            f"""(function() {{
+        js_expr = f"""(function() {{
+            if (!window.htmx) return JSON.stringify({{ error: 'htmx not loaded' }});
             const detail = {{
-                source: document.querySelector('{escaped_source}') || undefined,
-                target: document.querySelector('{escaped_target}') || undefined,
                 swap: '{escaped_swap}'
             }};
+            if ('{escaped_source}') detail.source = document.querySelector('{escaped_source}');
+            if ('{escaped_target}') detail.target = document.querySelector('{escaped_target}');
             
             htmx.ajax('{escaped_method}', '{escaped_url}', detail);
-            return {{ success: true, method: '{escaped_method}', url: '{escaped_url}', swap: '{escaped_swap}' }};
-        }})()""",
-        )
-        return result or {"error": "No result"}
+            return JSON.stringify({{ success: true, method: '{escaped_method}', url: '{escaped_url}', swap: '{escaped_swap}' }});
+        }})()"""
+        result = eval_js(t, js_expr)
+        import json
+
+        return json.loads(result) if result else {"error": "No result"}
     except Exception as e:
         return {"error": str(e)}
 
