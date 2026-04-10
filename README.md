@@ -6,6 +6,9 @@ This MCP connects to a Chrome browser (via CDP) and lets you inspect and debug a
 It captures htmx events and exposes an API to query the page.
 
 It can: 
+- Trigger HTMX Events
+- Validate swaps automatically
+- Monitor HTMX State
 - Discover all elements with htmx attributes on a page:
   - `hx-get`, `hx-post`, `hx-put`, `hx-patch`, `hx-delete`
   - `hx-trigger`, `hx-target`, `hx-swap`, etc.
@@ -33,7 +36,7 @@ It can:
 - Cannot change how htmx processes requests or responses.
 - Only captures event metadata, not the actual request/response content.
 - It won't click buttons or fill forms automatically.
-- It can not share Chrome with other tools. Each MCP gets its own tab.
+- It can not share Chrome with other tools. Each MCP gets its own (background) tab.
 
 
 ## Installation
