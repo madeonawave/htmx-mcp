@@ -1,6 +1,6 @@
 # htmx-mcp
 
-Chrome DevTools MCP server for debugging htmx applications.
+MCP server for Agentic development and debugging HTMX applications.
 
 This MCP connects to a Chrome browser (via CDP) and lets you inspect and debug any htmx-powered web page. 
 It captures htmx events and exposes an API to query the page.
